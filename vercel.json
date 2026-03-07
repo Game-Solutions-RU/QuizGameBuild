@@ -1,0 +1,73 @@
+{
+  "headers": [
+    {
+      "source": "/(.*)\\.br",
+      "headers": [
+        {
+          "key": "Content-Encoding",
+          "value": "br"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/octet-stream"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.js\\.br",
+      "headers": [
+        {
+          "key": "Content-Encoding",
+          "value": "br"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/javascript"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.wasm\\.br",
+      "headers": [
+        {
+          "key": "Content-Encoding",
+          "value": "br"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/wasm"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.data\\.br",
+      "headers": [
+        {
+          "key": "Content-Encoding",
+          "value": "br"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/octet-stream"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/Build/:file.js",
+      "has": [{ "type": "header", "key": "Accept-Encoding", "value": ".*br.*" }],
+      "destination": "/Build/:file.js.br"
+    },
+    {
+      "source": "/Build/:file.wasm",
+      "has": [{ "type": "header", "key": "Accept-Encoding", "value": ".*br.*" }],
+      "destination": "/Build/:file.wasm.br"
+    },
+    {
+      "source": "/Build/:file.data",
+      "has": [{ "type": "header", "key": "Accept-Encoding", "value": ".*br.*" }],
+      "destination": "/Build/:file.data.br"
+    }
+  ]
+}
