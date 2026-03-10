@@ -7,6 +7,22 @@
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
     <script>
+      // URL Parameter Bridging: платформы мини-приложений передают tracking token
+      // через свои параметры (startapp, tgWebAppStartParam, WebAppStartParam).
+      // Unity читает _tk из URL — мост между платформами и Unity.
+      // Выполняется СИНХРОННО до загрузки Unity.
+      (function() {
+        var p = new URLSearchParams(window.location.search);
+        if (p.get('_tk')) return; // _tk уже есть — ничего не делаем
+        var sp = p.get('startapp') || p.get('WebAppStartParam') || p.get('tgWebAppStartParam');
+        if (sp) {
+          p.set('_tk', sp);
+          if (!p.get('_v')) p.set('_v', '2');
+          history.replaceState(null, '', location.pathname + '?' + p.toString() + location.hash);
+        }
+      })();
+    </script>
+    <script>
       // VK Mini App — мгновенная инициализация, критично для мобильных клиентов.
       // VK требует VKWebAppInit в первые ~3 сек, иначе перенаправляет на VK ID.
       (function() {
@@ -59,6 +75,17 @@
           try {
             WebApp.ready();
             console.log('[MAX] WebApp.ready() OK');
+            // Inject _tk from start_param if not already in URL
+            if (WebApp.initDataUnsafe && WebApp.initDataUnsafe.start_param) {
+              var sp = WebApp.initDataUnsafe.start_param;
+              if (sp && window.location.search.indexOf('_tk=') === -1) {
+                var pp = new URLSearchParams(window.location.search);
+                pp.set('_tk', sp);
+                if (!pp.get('_v')) pp.set('_v', '2');
+                history.replaceState(null, '', location.pathname + '?' + pp.toString());
+                console.log('[MAX] Injected _tk from start_param:', sp);
+              }
+            }
           } catch(e) { console.warn('[MAX] ready() error:', e); }
           return true;
         }
