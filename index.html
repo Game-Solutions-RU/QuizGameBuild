@@ -6,6 +6,13 @@
     <title>Unity Web Player | Memory</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
+    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <script>
+      // Инициализация VK Mini App — без этого VK не знает что приложение загрузилось
+      if (window.vkBridge) {
+        vkBridge.send('VKWebAppInit').catch(function() {});
+      }
+    </script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
