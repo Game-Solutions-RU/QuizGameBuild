@@ -6,31 +6,47 @@
     <title>Unity Web Player | Memory</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <script src="https://unpkg.com/@vkontakte/vk-bridge@2/dist/browser.min.js"></script>
     <script>
-      // VK Mini App init — вызываем сразу и с fallback
-      function tryVKInit() {
-        if (window.vkBridge) {
-          vkBridge.send('VKWebAppInit').then(function() {
-            console.log('[VK Bridge] Init OK');
-          }).catch(function(e) {
-            console.warn('[VK Bridge] Init error:', e);
-          });
+      // VK Mini App — мгновенная инициализация, критично для мобильных клиентов.
+      // VK требует VKWebAppInit в первые ~3 сек, иначе перенаправляет на VK ID.
+      (function() {
+        var inited = false;
+        function doInit() {
+          if (inited || !window.vkBridge) return false;
+          inited = true;
+          try {
+            vkBridge.send('VKWebAppInit').then(function() {
+              console.log('[VK] Init OK');
+            }).catch(function(e) {
+              console.warn('[VK] Init error:', e);
+            });
+          } catch(e) { console.warn('[VK] Init exception:', e); }
           return true;
         }
-        return false;
-      }
-      // Попытка 1: синхронно (если скрипт загрузился)
-      if (!tryVKInit()) {
-        // Попытка 2: после загрузки DOM
-        document.addEventListener('DOMContentLoaded', function() {
-          if (!tryVKInit()) {
-            // Попытка 3: через 500ms (мобильный WebView может инжектить позже)
-            setTimeout(tryVKInit, 500);
-            setTimeout(tryVKInit, 1500);
-          }
-        });
-      }
+
+        // 1) Мобильный VK инжектит vkBridge нативно — проверяем сразу
+        if (doInit()) return;
+
+        // 2) Асинхронная загрузка SDK (не блокирует рендер страницы)
+        var cdns = [
+          'https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js',
+          'https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge/dist/browser.min.js'
+        ];
+        function loadFrom(idx) {
+          if (idx >= cdns.length || inited) return;
+          var s = document.createElement('script');
+          s.src = cdns[idx];
+          s.async = true;
+          s.onload = function() { doInit() || loadFrom(idx + 1); };
+          s.onerror = function() { loadFrom(idx + 1); };
+          document.head.appendChild(s);
+        }
+        loadFrom(0);
+
+        // 3) Fallback: повторные попытки (VK WebView может инжектить bridge позже)
+        var checks = [100, 300, 800, 2000];
+        checks.forEach(function(ms) { setTimeout(doInit, ms); });
+      })();
     </script>
   </head>
   <body>
