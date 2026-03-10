@@ -48,6 +48,32 @@
         checks.forEach(function(ms) { setTimeout(doInit, ms); });
       })();
     </script>
+    <script>
+      // MAX Mini App — инициализация через MAX Bridge.
+      // MAX показывает ошибку "нет сети" если WebApp.ready() не вызван за 15 сек.
+      (function() {
+        var maxInited = false;
+        function doMaxInit() {
+          if (maxInited || !window.WebApp) return false;
+          maxInited = true;
+          try {
+            WebApp.ready();
+            console.log('[MAX] WebApp.ready() OK');
+          } catch(e) { console.warn('[MAX] ready() error:', e); }
+          return true;
+        }
+        // 1) Проверяем сразу (MAX может инжектить WebApp нативно)
+        if (doMaxInit()) return;
+        // 2) Загружаем MAX Bridge SDK асинхронно
+        var s = document.createElement('script');
+        s.src = 'https://st.max.ru/js/max-web-app.js';
+        s.async = true;
+        s.onload = function() { doMaxInit(); };
+        document.head.appendChild(s);
+        // 3) Fallback-проверки
+        [100, 500, 1500, 3000].forEach(function(ms) { setTimeout(doMaxInit, ms); });
+      })();
+    </script>
   </head>
   <body>
     <div id="unity-container" class="unity-desktop">
