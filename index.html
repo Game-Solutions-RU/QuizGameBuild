@@ -6,11 +6,30 @@
     <title>Unity Web Player | Memory</title>
     <link rel="shortcut icon" href="TemplateData/favicon.ico">
     <link rel="stylesheet" href="TemplateData/style.css">
-    <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+    <script src="https://unpkg.com/@vkontakte/vk-bridge@2/dist/browser.min.js"></script>
     <script>
-      // Инициализация VK Mini App — без этого VK не знает что приложение загрузилось
-      if (window.vkBridge) {
-        vkBridge.send('VKWebAppInit').catch(function() {});
+      // VK Mini App init — вызываем сразу и с fallback
+      function tryVKInit() {
+        if (window.vkBridge) {
+          vkBridge.send('VKWebAppInit').then(function() {
+            console.log('[VK Bridge] Init OK');
+          }).catch(function(e) {
+            console.warn('[VK Bridge] Init error:', e);
+          });
+          return true;
+        }
+        return false;
+      }
+      // Попытка 1: синхронно (если скрипт загрузился)
+      if (!tryVKInit()) {
+        // Попытка 2: после загрузки DOM
+        document.addEventListener('DOMContentLoaded', function() {
+          if (!tryVKInit()) {
+            // Попытка 3: через 500ms (мобильный WebView может инжектить позже)
+            setTimeout(tryVKInit, 500);
+            setTimeout(tryVKInit, 1500);
+          }
+        });
       }
     </script>
   </head>
