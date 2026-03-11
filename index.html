@@ -67,7 +67,6 @@
             var apiBase = 'https://dashboard.promo-hub.game-solutions.ru';
             xhr.open('GET', apiBase + '/api/v1/players/resolve-token?vk_user_id=' +
               encodeURIComponent(vkUserId) + '&vk_app_id=' + encodeURIComponent(vkAppId), false);
-            xhr.timeout = 3000;
             xhr.send();
             if (xhr.status === 200) {
               var resp = JSON.parse(xhr.responseText);
