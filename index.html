@@ -13,6 +13,7 @@
       // Выполняется СИНХРОННО до загрузки Unity.
       (function() {
         var p = new URLSearchParams(window.location.search);
+        console.log('[URLBridge] search:', window.location.search, 'hash:', window.location.hash);
         if (p.get('_tk')) return; // _tk уже есть — ничего не делаем
 
         // 1) MAX / Telegram: startapp / WebAppStartParam / tgWebAppStartParam
@@ -27,7 +28,21 @@
         // 2) VK Mini App: open_app button passes params via "hash" launch param.
         //    VK sends: ...&hash=_tk%3Dabc123%26_v%3D2  (URL-encoded query string)
         //    Also check window.location.hash for direct link launches (#_tk=abc).
-        var vkHash = p.get('hash') || window.location.hash.replace(/^#/, '');
+        //    Desktop VK may also put params in vk_launch_params (newer clients).
+        var vkHash = p.get('hash') || '';
+        if (!vkHash) {
+          // Newer VK web may pass launch params as a single encoded string
+          var launchParams = p.get('vk_launch_params');
+          if (launchParams) {
+            try {
+              var lp = new URLSearchParams(launchParams);
+              vkHash = lp.get('hash') || '';
+            } catch(e) {}
+          }
+        }
+        if (!vkHash) {
+          vkHash = window.location.hash.replace(/^#/, '');
+        }
         if (vkHash) {
           var hp = new URLSearchParams(vkHash);
           var tk = hp.get('_tk');
@@ -46,11 +61,34 @@
     <script>
       // VK Mini App — мгновенная инициализация, критично для мобильных клиентов.
       // VK требует VKWebAppInit в первые ~3 сек, иначе перенаправляет на VK ID.
-      // На iPhone VK не инжектит bridge нативно — нужна СИНХРОННАЯ загрузка SDK.
       (function() {
         var inited = false;
-        // Определяем, запущены ли мы внутри VK (по launch params в URL)
-        var isVK = /[?&]vk_app_id=/.test(window.location.search);
+
+        // После VKWebAppInit — пробуем достать hash с токеном через VK Bridge.
+        // На десктопном vk.com hash из open_app кнопки НЕ попадает в URL iframe,
+        // а доступен только через VKWebAppGetLaunchParams.
+        function tryInjectTokenFromBridge() {
+          if (window.location.search.indexOf('_tk=') !== -1) return; // уже есть
+          try {
+            vkBridge.send('VKWebAppGetLaunchParams').then(function(params) {
+              console.log('[VK] LaunchParams:', JSON.stringify(params));
+              var hashStr = params && (params.hash || '');
+              if (!hashStr) return;
+              var hp = new URLSearchParams(hashStr);
+              var tk = hp.get('_tk');
+              if (tk && window.location.search.indexOf('_tk=') === -1) {
+                var pp = new URLSearchParams(window.location.search);
+                pp.set('_tk', tk);
+                if (!pp.get('_v')) pp.set('_v', hp.get('_v') || '2');
+                pp.delete('hash');
+                history.replaceState(null, '', location.pathname + '?' + pp.toString());
+                console.log('[VK] Injected _tk from VKWebAppGetLaunchParams:', tk);
+              }
+            }).catch(function(e) {
+              console.warn('[VK] GetLaunchParams error:', e);
+            });
+          } catch(e) { /* bridge not ready yet */ }
+        }
 
         function doInit() {
           if (inited || !window.vkBridge) return false;
@@ -58,6 +96,7 @@
           try {
             vkBridge.send('VKWebAppInit').then(function() {
               console.log('[VK] Init OK');
+              tryInjectTokenFromBridge();
             }).catch(function(e) {
               console.warn('[VK] Init error:', e);
             });
@@ -65,17 +104,27 @@
           return true;
         }
 
-        // 1) Мобильный VK может инжектить vkBridge нативно — проверяем сразу
+        // 1) Мобильный VK инжектит vkBridge нативно — проверяем сразу
         if (doInit()) return;
 
-        // 2) СИНХРОННАЯ загрузка SDK, если мы в VK (блокирует парсинг, но надёжно
-        //    инициализирует bridge до таймаута VK — ~3 сек)
-        if (isVK) {
-          document.write('<scr' + 'ipt src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></scr' + 'ipt>');
+        // 2) Асинхронная загрузка SDK (не блокирует рендер страницы)
+        var cdns = [
+          'https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js',
+          'https://cdn.jsdelivr.net/npm/@vkontakte/vk-bridge/dist/browser.min.js'
+        ];
+        function loadFrom(idx) {
+          if (idx >= cdns.length || inited) return;
+          var s = document.createElement('script');
+          s.src = cdns[idx];
+          s.async = true;
+          s.onload = function() { doInit() || loadFrom(idx + 1); };
+          s.onerror = function() { loadFrom(idx + 1); };
+          document.head.appendChild(s);
         }
+        loadFrom(0);
 
-        // 3) Fallback: повторные попытки (после document.write script загрузится)
-        var checks = [0, 50, 150, 400, 1000, 2000];
+        // 3) Fallback: повторные попытки (VK WebView может инжектить bridge позже)
+        var checks = [100, 300, 800, 2000];
         checks.forEach(function(ms) { setTimeout(doInit, ms); });
       })();
     </script>
