@@ -56,6 +56,35 @@
             return;
           }
         }
+
+        // 3) VK Desktop fallback: hash из open_app кнопки не приходит.
+        //    Используем vk_user_id + vk_app_id чтобы получить _tk через API.
+        var vkUserId = p.get('vk_user_id');
+        var vkAppId = p.get('vk_app_id');
+        if (vkUserId && vkAppId) {
+          try {
+            var xhr = new XMLHttpRequest();
+            var apiBase = 'https://dashboard.promo-hub.game-solutions.ru';
+            xhr.open('GET', apiBase + '/api/v1/players/resolve-token?vk_user_id=' +
+              encodeURIComponent(vkUserId) + '&vk_app_id=' + encodeURIComponent(vkAppId), false);
+            xhr.timeout = 3000;
+            xhr.send();
+            if (xhr.status === 200) {
+              var resp = JSON.parse(xhr.responseText);
+              if (resp.tracking_token) {
+                p.set('_tk', resp.tracking_token);
+                if (!p.get('_v')) p.set('_v', '2');
+                history.replaceState(null, '', location.pathname + '?' + p.toString());
+                console.log('[VK] Resolved _tk from API via vk_user_id:', resp.tracking_token);
+                return;
+              }
+            } else {
+              console.warn('[VK] resolve-token API returned', xhr.status);
+            }
+          } catch(e) {
+            console.warn('[VK] resolve-token failed:', e);
+          }
+        }
       })();
     </script>
     <script>
